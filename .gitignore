@@ -1,0 +1,18 @@
+# File
+.vscode
+*.spec
+.DS_Store
+note
+*.zip
+
+# Folder
+build/
+dist/
+myenv/
+Emma_test
+emmc_test_package
+pattern.bin
+pattern_dev1.bin
+pattern_dev2.bin
+pattern_dev3.bin
+readback.bin
