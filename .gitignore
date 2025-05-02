@@ -9,6 +9,7 @@ note
 build/
 dist/
 myenv/
+__pycache__/
 Emma_test
 emmc_test_package
 pattern.bin
