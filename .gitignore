@@ -4,16 +4,24 @@
 .DS_Store
 note
 *.zip
+pattern.bin
+pattern_dev1.bin
+pattern_dev2.bin
+pattern_dev3.bin
+readback.bin
+readback_dev1.bin
+readback_dev2.bin
+readback_dev3.bin
+
 
 # Folder
 build/
 dist/
 myenv/
 __pycache__/
-Emma_test
-emmc_test_package
-pattern.bin
-pattern_dev1.bin
-pattern_dev2.bin
-pattern_dev3.bin
-readback.bin
+Emma_test/
+emmc_test_package/
+emmc_test_*/
+android/
+
+

@@ -78,6 +78,7 @@
         <font>
          <family>Malgun Gothic</family>
          <pointsize>10</pointsize>
+         <weight>75</weight>
          <italic>false</italic>
          <bold>true</bold>
         </font>
@@ -116,6 +117,7 @@ QPushButton
         <font>
          <family>Malgun Gothic</family>
          <pointsize>10</pointsize>
+         <weight>75</weight>
          <bold>true</bold>
         </font>
        </property>

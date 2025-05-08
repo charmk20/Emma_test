@@ -7,7 +7,9 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QFile, QIODevice, Qt, QSize, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QDialog, QListWidget
 from ppadb.client import Client as AdbClient
-import ipaddress, pop_window, threading
+import ipaddress, threading
+import pop_window
+import winreg
 
 # 설정 부분
 TARGET_PARTITION = "/dev/block/factory"  # 타겟 파티션
@@ -106,7 +108,7 @@ class MainWindow(QMainWindow):
 
     def pushButton_start_3_connect_clicked(self):
         if self.device3 != None:
-            if getattr(self, "thre ad_dev3", None) and self.thread_dev3.is_alive():
+            if getattr(self, "thread_dev3", None) and self.thread_dev3.is_alive():
                 self.thread_dev3_stop = True
                 self.thread_dev3.join()
                 self.pushButton_start_3.setText("테스트시작")
@@ -241,6 +243,11 @@ class MainWindow(QMainWindow):
         result = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return result.returncode, result.stdout.decode(), result.stderr.decode()
     
+    #adb kill-server 명령실행
+    def adb_kill_server(self):
+        full_cmd = [ADB_PATH, "kill-server"]
+        result = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return result.returncode, result.stdout.decode(), result.stderr.decode()
 
     # adb shell 명령 실행
     def adb_shell(self, dev_ip, cmd):
@@ -291,8 +298,8 @@ class MainWindow(QMainWindow):
 
         iteration = 0
 
-        while (self.thread_dev1_stop == False):
-            
+        dev_stop = False
+        while (dev_stop == False):            
             if dev == "dev1":
                 dev_stop = self.thread_dev1_stop
             elif dev == "dev2":
@@ -301,6 +308,7 @@ class MainWindow(QMainWindow):
                 dev_stop = self.thread_dev3_stop
 
             if dev_stop == True:
+                print(f"test stopped = {dev}")
                 break 
 
             try:
@@ -314,7 +322,7 @@ class MainWindow(QMainWindow):
                     raise Exception(f"Write 실패: {err}")
 
                 # 2. Verify (read to file)
-                remote_read_file = "/data/readback.bin"
+                remote_read_file = f"/data/readback_{dev}.bin"
                 cmd = ["dd", f"if={TARGET_PARTITION}", f"of={remote_read_file}", "bs=4096", "count=1024"]
                 print(f"cmd = {cmd}")
 
@@ -323,7 +331,7 @@ class MainWindow(QMainWindow):
                     raise Exception(f"Read 실패: {err}")
 
                 # Pull the readback file
-                local_read_file = "readback.bin"
+                local_read_file = f"readback_{dev}.bin"
                 subprocess.run([ADB_PATH, "-s", dev_ip, "pull", remote_read_file, local_read_file], stdout=subprocess.DEVNULL)
 
                 with open(local_read_file, "rb") as f:
@@ -341,13 +349,28 @@ class MainWindow(QMainWindow):
 
         self.noti_signal.emit(dev, f"[RESULT] 최종 반복 횟수: {iteration}")
 
+def add_current_directory_to_path():
+    current_dir = os.path.join(os.getcwd(), "android")
+    current_path = os.environ.get("PATH", "")
+
+    if current_dir not in current_path.split(";"):
+        os.environ["PATH"] += ";" + current_dir
+        print(f"[OK] PATH에 추가됨: {current_dir}")
+    else:
+        print(f"[SKIP] 이미 PATH에 존재함: {current_dir}")
+
 if __name__ == "__main__":\
     ## Display ui 
     app = QApplication(sys.argv)
 
+    add_current_directory_to_path()
+
     MW = MainWindow()
     MW.show()
-    MW.adb_root()
+    ret = MW.adb_kill_server()
+    print (f"=====> {ret}")
+    ret = MW.adb_root()
+    print (f"=====> {ret}")
     sys.exit(app.exec())
 
     ## endurance_test()

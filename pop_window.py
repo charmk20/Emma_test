@@ -1,4 +1,4 @@
-import sys
+import sys, os
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QDialog, QMessageBox, QLabel, QVBoxLayout, QPushButton
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
@@ -108,9 +108,15 @@ from PyQt6 import QtCore, QtGui, QtWidgets, uic
 class CustomMessageBox(QDialog):
     def __init__(self, title, message, login):
         super().__init__()
+        
+        current_directory = os.getcwd()
+        ui_path = os.path.join(os.path.dirname(__file__), "pop_window.ui")
+        try:
+            uic.loadUi(ui_path,self)
+        except:
+            print(f'load pop_window.ui ========> {current_directory}')
 
-        uic.loadUi("pop_window.ui", self)
-
+        
         self.setWindowTitle(title)
         self.setFixedSize(576, 258)  # 크기 고정
         self.pushButton_ok.clicked.connect(self.accept)
@@ -158,7 +164,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     display_information_popup("펌웨어 다운로드 중")
 
-    custom_msg = CustomMessageBox("Custom Dialog", "This is a custom dialog with fixed size.")
+    custom_msg = CustomMessageBox("Custom Dialog", "This is a custom dialog with fixed size.", False)
     custom_msg.exec()
 
     sys.exit(app.exec())
