@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
     def noti_signal_handler(self, dev, message):
         if dev == "dev1":        
             self.textEdit_dev1_status.setText(message)
-        elif dev == "dev2": \
+        elif dev == "dev2": 
             self.textEdit_dev2_status.setText(message)
         elif dev == "dev3" :
             self.textEdit_dev3_status.setText(message)
