@@ -116,7 +116,6 @@ class CustomMessageBox(QDialog):
         except:
             print(f'load pop_window.ui ========> {current_directory}')
 
-        
         self.setWindowTitle(title)
         self.setFixedSize(576, 258)  # 크기 고정
         self.pushButton_ok.clicked.connect(self.accept)
@@ -135,7 +134,7 @@ class CustomMessageBox(QDialog):
 
     def do_push_button(self):
         self.self_exit()
-        
+
 def display_information_popup(message): 
  ##   app = QApplication(sys.argv)
     custom_msg = CustomMessageBox("Information", message, False) 

@@ -5,7 +5,8 @@ import sys, os
 from PyQt6 import uic
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QFile, QIODevice, Qt, QSize, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QDialog, QListWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QDialog, QListWidget, QWidget, QLabel, QVBoxLayout
+from PyQt6.QtGui import QFont
 from ppadb.client import Client as AdbClient
 import ipaddress, threading
 import pop_window
@@ -17,6 +18,7 @@ PARTITION_SIZE = 1024 * 4096  # 1MB 예시 (필요시 수정)
 BLOCK_SIZE = 4096  # KB
 PATTERN_BYTE = b'\xAA'  # 반복해서 쓸 데이터 패턴
 ADB_PATH = "adb"  # adb 경로
+emmc_life_check = "cat /sys/block/mmcblk0/device/pre_eol_info"
 
 class MainWindow(QMainWindow):
 
@@ -50,7 +52,19 @@ class MainWindow(QMainWindow):
         self.thread_dev2_stop = False
         self.thread_dev3_stop = False
 
+        # 프로그램 준비 팝업업
+        pop = LoadingPopup()
+        pop.show()
+     
+        ret = self.adb_kill_server()
+        print (f"[adb_kill_server] {ret}")
+        ret = self.adb_start_server()
+        print (f"[adb_start_server] {ret}")
         self.setEventHandler()
+     
+        pop.hide
+
+
 
     # 시그널 핸들러 정의
     def noti_signal_handler(self, dev, message):
@@ -85,7 +99,7 @@ class MainWindow(QMainWindow):
                 self.pushButton_start_1.setText("테스트시작")
             else:
                 self.thread_dev1_stop = False
-                self.thread_dev1 = threading.Thread(target=self.endurance_test, args=("dev1",))
+                self.thread_dev1 = threading.Thread(target=self.endurance_test, args=("dev1",), daemon=True)
                 self.thread_dev1.start()
                 self.pushButton_start_1.setText("테스트중지")
         else:
@@ -100,7 +114,7 @@ class MainWindow(QMainWindow):
                 self.pushButton_start_2.setText("테스트시작")
             else:
                 self.thread_dev2_stop = False
-                self.thread_dev2 = threading.Thread(target=self.endurance_test, args=("dev2",))
+                self.thread_dev2 = threading.Thread(target=self.endurance_test, args=("dev2",), daemon=True)
                 self.thread_dev2.start()
                 self.pushButton_start_2.setText("테스트중지")
         else:
@@ -114,7 +128,7 @@ class MainWindow(QMainWindow):
                 self.pushButton_start_3.setText("테스트시작")
             else:
                 self.thread_dev3_stop = False 
-                self.thread_dev3 = threading.Thread(target=self.endurance_test, args=("dev3",))
+                self.thread_dev3 = threading.Thread(target=self.endurance_test, args=("dev3",), daemon=True)
                 self.thread_dev3.start()
                 self.pushButton_start_3.setText("테스트중지")
         else:
@@ -229,6 +243,12 @@ class MainWindow(QMainWindow):
             return device
         else :
             pop_window.display_information_popup("디바이스 연결에 실패 했습니다 !!")
+            if dev_index   == 1:
+                self.textEdit_dev1_status.setText("Device Connection is Fail")
+            elif dev_index == 2:
+                self.textEdit_dev2_status.setText("Device Connection is Fail")
+            elif dev_index == 3:
+                self.textEdit_dev3_status.setText("Device Connection is Fail")
             return None
 
     def is_valid_ip(sel, ip_str: str) -> bool:
@@ -237,9 +257,17 @@ class MainWindow(QMainWindow):
             return True
         except ValueError:
             return False
+        
+    
+    # adb start
+    def adb_start_server(self):
+        full_cmd = [ADB_PATH, "start-server"]
+        result = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return result.returncode, result.stdout.decode(), result.stderr.decode()
+
     # adb root 명령 실행
-    def adb_root(self):
-        full_cmd = [ADB_PATH, "root"]
+    def adb_root(self, ip_addr):
+        full_cmd = [ADB_PATH, "-s", ip_addr, "root"]
         result = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return result.returncode, result.stdout.decode(), result.stderr.decode()
     
@@ -266,6 +294,21 @@ class MainWindow(QMainWindow):
         with open(filename, "wb") as f:
             f.write(pattern_byte * size_bytes)
 
+    ## 0x00 : 정상
+    ## 0x01 : 경고 (Warning - 사용량 많음)
+    ## 0x02 : 임박 (Near End-of-Life)
+    def check_emmc_life_check_file(self, dev_ip):
+        emmc_life_check = "cat /sys/block/mmcblk0/device/pre_eol_info"
+        full_cmd = [ADB_PATH, "-s", dev_ip, "shell", emmc_life_check]
+        result = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode == 0:
+            output = result.stdout.decode().strip()
+            print(f"[INFO] eMMC 수명 정보 (pre_eol_info): {output}")
+        else:
+            print(f"[ERROR] ADB 명령 실패: {result.stderr.decode().strip()}")
+        return result.returncode == 0, result.stdout.decode().strip()
+        
+
     # 메인 테스트 함수
     def endurance_test(self, dev):
         if dev == "dev1":
@@ -291,7 +334,12 @@ class MainWindow(QMainWindow):
         self.create_pattern_file(temp_file, PARTITION_SIZE, PATTERN_BYTE)
         print(f"[INFO] Pattern file '{temp_file}' created.")
 
-        # Step 2: 디바이스로 push
+        # Step 2: root 권한 
+        if not self.adb_root(dev_ip):
+            print("[ERROR] Failed to change adb root.")
+            return
+
+        # Step 3: 디바이스로 push
         if not self.adb_push(dev_ip, temp_file, remote_temp):
             print("[ERROR] Failed to push pattern file to device.")
             return
@@ -313,9 +361,13 @@ class MainWindow(QMainWindow):
 
             try:
                 print(f"[INFO] Iteration {iteration + 1} 시작")
-                self.noti_signal.emit(dev, f"[INFO] Iteration {iteration + 1} 시작")
+                ret, ls_value = self.check_emmc_life_check_file(dev_ip)
+                if ret == True:
+                    self.noti_signal.emit(dev, f"[INFO] Iteration {iteration + 1} 시작, life cycle indicator = {ls_value}")    
+                else:        
+                    self.noti_signal.emit(dev, f"[INFO] Iteration {iteration + 1} 시작")
                 # 1. Write
-                cmd = ["dd", f"if={remote_temp}", f"of={TARGET_PARTITION}", "bs=4096", "count=1024", "conv=notrunc"]
+                cmd = ["dd", f"if={remote_temp}", f"of={TARGET_PARTITION}", "bs=4096", "count=1024", "seek=1024", "conv=notrunc"]
                 print(f"cmd = {cmd}")
                 ret, out, err = self.adb_shell(dev_ip, cmd)
                 if ret != 0:
@@ -323,7 +375,7 @@ class MainWindow(QMainWindow):
 
                 # 2. Verify (read to file)
                 remote_read_file = f"/data/readback_{dev}.bin"
-                cmd = ["dd", f"if={TARGET_PARTITION}", f"of={remote_read_file}", "bs=4096", "count=1024"]
+                cmd = ["dd", f"if={TARGET_PARTITION}", f"of={remote_read_file}", "bs=4096", "count=1024", "skip=1024"]
                 print(f"cmd = {cmd}")
 
                 ret, out, err = self.adb_shell(dev_ip, cmd)
@@ -359,6 +411,28 @@ def add_current_directory_to_path():
     else:
         print(f"[SKIP] 이미 PATH에 존재함: {current_dir}")
 
+class LoadingPopup(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("EMMC TEST PROGRAM")
+        self.setFixedSize(400, 200)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.CustomizeWindowHint)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        label = QLabel("프로그램 시작 준비 중입니다다...\n잠시만 기다려 주세요 !!")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # ✅ 폰트 설정: Bold + 크기 14
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(12)
+        label.setFont(font)
+
+        layout.addWidget(label)
+        self.setLayout(layout)
+
 if __name__ == "__main__":\
     ## Display ui 
     app = QApplication(sys.argv)
@@ -367,10 +441,6 @@ if __name__ == "__main__":\
 
     MW = MainWindow()
     MW.show()
-    ret = MW.adb_kill_server()
-    print (f"=====> {ret}")
-    ret = MW.adb_root()
-    print (f"=====> {ret}")
     sys.exit(app.exec())
 
     ## endurance_test()
